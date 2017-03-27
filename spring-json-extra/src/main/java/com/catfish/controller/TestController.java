@@ -1,13 +1,15 @@
 package com.catfish.controller;
 
-import com.catfish.bean.User;
+import com.catfish.bean.Body;
+import com.catfish.bean.JSONArrayWrapper;
+import com.catfish.bean.JSONObjectWrapper;
+import com.catfish.bean.JSONWrapper;
 import com.catfish.spring.support.JsonRequest;
+import net.sf.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 /**
@@ -20,36 +22,42 @@ public class TestController {
     private Logger logger = LoggerFactory.getLogger(getClass());
 
 
-    @RequestMapping("/getUserByJson")
+    @RequestMapping("/getParameterByPath")
     @ResponseBody
-    public String getUserByJson(@RequestBody User user) {
-        return user.toString();
-    }
-
-    @RequestMapping("/aaa")
-    @ResponseBody
-    public String aaa(@RequestParam Long id) {
-        return "";
-    }
-
-    @RequestMapping("/getUserByJson2")
-    @ResponseBody
-    public String getUserByJson2(@JsonRequest("$.id") Long id, @JsonRequest("$.name") String name) {
+    public String getParameterByPath(@JsonRequest("$.id") Long id, @JsonRequest("$.name") String name) {
         return id + "," + name;
     }
 
-    @RequestMapping("/getUserByJson3")
+    @RequestMapping("/getParameterByDefaultValue")
     @ResponseBody
-    public String getUserByJson3(@JsonRequest Long id, @JsonRequest String name) {
+    public String getParameterByDefaultValue(@JsonRequest Long id, @JsonRequest String name) {
         return id + "," + name;
     }
 
-    @RequestMapping("/getUserByJson4")
+    @RequestMapping("/getJsonObject")
     @ResponseBody
-    public String getUserByJson4(@JsonRequest User user,@JsonRequest User user2) {
-        logger.info(user2.toString());
-        return user.toString();
+    public String getJsonObject(@JsonRequest JSONObjectWrapper name) {
+        logger.info(name.toString());
+        return name.getJSONObject().getString("id");
     }
 
+    @RequestMapping("/getAllJsonObject")
+    @ResponseBody
+    public String getAllJsonObject(@JsonRequest JSONWrapper name) {
+        logger.info(name.toString());
+        return name.getJSONObject().getString("id");
+    }
 
+    @RequestMapping("/getBean")
+    @ResponseBody
+    public String getUserByJson7(@JsonRequest Body body) {
+        return String.valueOf(body.getId());
+    }
+
+    @RequestMapping("/getJsonArray")
+    @ResponseBody
+    public String getJsonArray(@JsonRequest JSONArrayWrapper array) {
+        JSONObject jsonObject = array.getJsonArray().getJSONObject(0);
+        return jsonObject.getString("name");
+    }
 }

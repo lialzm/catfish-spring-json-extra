@@ -1,7 +1,13 @@
 package com.catfish.spring.support;
 
+import com.catfish.bean.JSONArrayWrapper;
+import com.catfish.bean.JSONObjectWrapper;
+import com.catfish.bean.JSONWrapper;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.PathNotFoundException;
+import net.sf.json.JSONArray;
+import net.sf.json.JSONException;
+import net.sf.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.ConversionNotSupportedException;
@@ -9,7 +15,6 @@ import org.springframework.beans.TypeMismatchException;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.ResolvableType;
 import org.springframework.http.*;
-import org.springframework.http.converter.GenericHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.util.StreamUtils;
@@ -69,6 +74,7 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
 
     public JsonRequestMethodArgumentResolver(List<HttpMessageConverter<?>> converters) {
         super(converters);
+        logger.info("JsonRequestMethodArgumentResolver");
     }
 
     public JsonRequestMethodArgumentResolver(List<HttpMessageConverter<?>> converters, List<Object> requestResponseBodyAdvice) {
@@ -193,13 +199,60 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
             byte[] bytes = threadLocal2.get();
             inputMessage = new CloneBodyHttpInputMessage(inputMessage, bytes);
         }
-        Object body;
+        Object body = null;
         if (canJsonPathRead(targetClass)) {
             body = jsonPathRead(inputMessage, param);
+        } else if (canJSONWrapper(targetClass)) {
+            String json = StreamUtils.copyToString(inputMessage.getBody(), Charset.defaultCharset());
+            try {
+                body = new JSONWrapper(JSONObject.fromObject(json));
+            }catch (JSONException e) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("", e);
+                }
+            }
+        } else if (canJsonObjectWrapper(targetClass)) {
+            String json = StreamUtils.copyToString(inputMessage.getBody(), Charset.defaultCharset());
+            String value = param.getParameterAnnotation(JsonRequest.class).value();
+            if (value == null || value.isEmpty()) {
+                value = "$." + param.getParameterName();
+            }
+            try {
+                body = new JSONObjectWrapper(JSONObject.fromObject(JsonPath.read(json, value)));
+            } catch (JSONException e) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("", e);
+                }
+            }
+        } else if (canJsonArrayWrapper(targetClass)) {
+            String json = StreamUtils.copyToString(inputMessage.getBody(), Charset.defaultCharset());
+            String value = param.getParameterAnnotation(JsonRequest.class).value();
+            if (value == null || value.isEmpty()) {
+                value = "$." + param.getParameterName();
+            }
+            try {
+                body = new JSONArrayWrapper(JSONArray.fromObject(JsonPath.read(json, value)));
+            } catch (JSONException e) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("", e);
+                }
+            }
         } else {
-            body = jsonRead(inputMessage, targetType, contextClass, contentType, targetClass);
+            body = jsonRead(inputMessage, targetType, contextClass, contentType, targetClass, param);
         }
         return body;
+    }
+
+    private Boolean canJsonObjectWrapper(Class targetClass) {
+        return targetClass.equals(JSONObjectWrapper.class);
+    }
+
+    private Boolean canJsonArrayWrapper(Class targetClass) {
+        return targetClass.equals(JSONArrayWrapper.class);
+    }
+
+    private Boolean canJSONWrapper(Class targetClass) {
+        return targetClass.equals(JSONWrapper.class);
     }
 
     private Boolean canJsonPathRead(Class targetClass) {
@@ -221,9 +274,26 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
                 );
     }
 
-    private Object jsonRead(HttpInputMessage inputMessage, Type targetType, Class<?> contextClass, MediaType contentType, Class targetClass) throws IOException {
+    private Object jsonRead(HttpInputMessage inputMessage, Type targetType, Class<?> contextClass, MediaType contentType, Class targetClass, MethodParameter param) throws IOException {
         Object body = NO_VALUE;
-        for (HttpMessageConverter<?> converter : this.messageConverters) {
+        Charset charset = contentType.getCharset();
+        if (charset == null) {
+            charset = Charset.defaultCharset();
+        }
+        String json = StreamUtils.copyToString(inputMessage.getBody(), charset);
+        String value = param.getParameterAnnotation(JsonRequest.class).value();
+        if (value == null || value.isEmpty()) {
+            value = "$." + param.getParameterName();
+        }
+        JSONObject jsonObject = JSONObject.fromObject(JsonPath.read(json, value));
+        try {
+            body = JSONObject.toBean(jsonObject, targetClass);
+        } catch (Exception e) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("", e);
+            }
+        }
+       /* for (HttpMessageConverter<?> converter : this.messageConverters) {
             Class<HttpMessageConverter<?>> converterType = (Class<HttpMessageConverter<?>>) converter.getClass();
             if (converter instanceof GenericHttpMessageConverter) {
                 GenericHttpMessageConverter<?> genericConverter = (GenericHttpMessageConverter<?>) converter;
@@ -251,7 +321,7 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
                     break;
                 }
             }
-        }
+        }*/
         return body;
     }
 

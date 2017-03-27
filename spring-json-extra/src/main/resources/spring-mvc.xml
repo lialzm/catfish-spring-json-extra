@@ -11,12 +11,10 @@ http://www.springframework.org/schema/mvc http://www.springframework.org/schema/
             <bean class="com.catfish.spring.support.JsonRequestMethodArgumentResolver">
                 <constructor-arg>
                     <list>
-                        <!--只是用来防止报错,目前并没有使用到消息转换器-->
-                        <ref bean="byteArrayHttpMessageConverter"/>
+                        <bean class="org.springframework.http.converter.ByteArrayHttpMessageConverter"/>
                         <bean class="org.springframework.http.converter.json.MappingJackson2HttpMessageConverter"/>
                         <bean class="org.springframework.http.converter.StringHttpMessageConverter"/>
                         <bean class="org.springframework.http.converter.ResourceHttpMessageConverter"/>
-
                     </list>
                 </constructor-arg>
             </bean>
@@ -34,11 +32,6 @@ http://www.springframework.org/schema/mvc http://www.springframework.org/schema/
     <!--配置controller扫描路径-->
     <context:component-scan base-package="com.catfish.**.controller">
     </context:component-scan>
-    <bean id="myMappingJackson2HttpMessageConverter"
-          class="com.catfish.spring.support.MyMappingJackson2HttpMessageConverter"></bean>
-    <bean id="byteArrayHttpMessageConverter"
-          class="org.springframework.http.converter.ByteArrayHttpMessageConverter"></bean>
 
-    <bean class="org.springframework.validation.beanvalidation.MethodValidationPostProcessor"/>
 
 </beans>
