@@ -1,5 +1,6 @@
 package com.catfish.spring.support;
 
+import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.PathNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +12,7 @@ import org.springframework.http.*;
 import org.springframework.http.converter.GenericHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.util.StreamUtils;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.ValueConstants;
@@ -21,10 +23,15 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.method.support.ModelAndViewContainer;
 import org.springframework.web.servlet.mvc.method.annotation.AbstractMessageConverterMethodArgumentResolver;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PushbackInputStream;
 import java.lang.reflect.Type;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.charset.Charset;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,16 +43,29 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
 
 
     private final Map<MethodParameter, NamedValueInfo> namedValueInfoCache = new ConcurrentHashMap<MethodParameter, NamedValueInfo>(256);
-
+    private static ThreadLocal<HttpInputMessage> threadLocal = new ThreadLocal<HttpInputMessage>();
+    private static ThreadLocal<byte[]> threadLocal2 = new ThreadLocal<byte[]>();
 
     private Logger logger = LoggerFactory.getLogger(getClass());
 
-    //存储json
-    private static ThreadLocal<String> threadLocal = new ThreadLocal<String>();
-    private static ThreadLocal<HttpInputMessage> threadLocal2 = new ThreadLocal<HttpInputMessage>();
 
     private static final Object NO_VALUE = new Object();
 
+    private static class ThreadCache {
+        private static ThreadLocal<HttpInputMessage> threadLocal = new ThreadLocal<HttpInputMessage>();
+
+        public static HttpInputMessage getPostRequestParams() {
+            return threadLocal.get();
+        }
+
+        public static void setPostRequestParams(HttpInputMessage postRequestParams) {
+            threadLocal.set(postRequestParams);
+        }
+
+        public static void removePostRequestParams() {
+            threadLocal.remove();
+        }
+    }
 
     public JsonRequestMethodArgumentResolver(List<HttpMessageConverter<?>> converters) {
         super(converters);
@@ -83,8 +103,6 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
                         "", parameter, ex.getCause());
             }
         }
-
-
         return arg;
     }
 
@@ -164,14 +182,48 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
                     ResolvableType.forMethodParameter(param) : ResolvableType.forType(targetType));
             targetClass = (Class<T>) resolvableType.resolve();
         }
-        inputMessage = new EmptyBodyCheckingHttpInputMessage(inputMessage);
+        //第一次获取流
+        if (threadLocal.get() == null) {
+            byte[] bytes = StreamUtils.copyToByteArray(inputMessage.getBody());
+            inputMessage = new CloneBodyHttpInputMessage(inputMessage, bytes);
+            threadLocal2.set(bytes);
+            threadLocal.set(inputMessage);
+        } else {
+            inputMessage = threadLocal.get();
+            byte[] bytes = threadLocal2.get();
+            inputMessage = new CloneBodyHttpInputMessage(inputMessage, bytes);
+        }
+        Object body;
+        if (canJsonPathRead(targetClass)) {
+            body = jsonPathRead(inputMessage, param);
+        } else {
+            body = jsonRead(inputMessage, targetType, contextClass, contentType, targetClass);
+        }
+        return body;
+    }
+
+    private Boolean canJsonPathRead(Class targetClass) {
+        return
+                (
+                        targetClass.equals(String.class) ||
+                                targetClass.equals(Integer.class) ||
+                                targetClass.equals(Byte.class) ||
+                                targetClass.equals(Long.class) ||
+                                targetClass.equals(Double.class) ||
+                                targetClass.equals(Float.class) ||
+                                targetClass.equals(Character.class) ||
+                                targetClass.equals(Short.class) ||
+                                targetClass.equals(BigDecimal.class) ||
+                                targetClass.equals(BigInteger.class) ||
+                                targetClass.equals(Boolean.class) ||
+                                targetClass.equals(Date.class) ||
+                                targetClass.isPrimitive()
+                );
+    }
+
+    private Object jsonRead(HttpInputMessage inputMessage, Type targetType, Class<?> contextClass, MediaType contentType, Class targetClass) throws IOException {
         Object body = NO_VALUE;
         for (HttpMessageConverter<?> converter : this.messageConverters) {
-            if (threadLocal2.get() != null) {
-                inputMessage = threadLocal2.get();
-            } else {
-                threadLocal2.set(inputMessage);
-            }
             Class<HttpMessageConverter<?>> converterType = (Class<HttpMessageConverter<?>>) converter.getClass();
             if (converter instanceof GenericHttpMessageConverter) {
                 GenericHttpMessageConverter<?> genericConverter = (GenericHttpMessageConverter<?>) converter;
@@ -192,7 +244,7 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
                         logger.debug("Read [" + targetType + "] as \"" + contentType + "\" with [" + converter + "]");
                     }
                     if (inputMessage.getBody() != null) {
-                        body = ((HttpMessageConverter<T>) converter).read(targetClass, inputMessage);
+                        body = ((HttpMessageConverter) converter).read(targetClass, inputMessage);
                     } else {
                         body = null;
                     }
@@ -201,29 +253,22 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
             }
         }
         return body;
-        /*try {
+    }
 
-            inputMessage = new EmptyBodyCheckingHttpInputMessage(inputMessage);
+    private Object jsonPathRead(HttpInputMessage inputMessage, MethodParameter param) throws IOException {
+        try {
             InputStream inputStream = inputMessage.getBody();
-            String json;
-            if (inputStream == null) {
-                json = threadLocal.get();
-            } else {
-                json = StreamUtils.copyToString(inputStream, Charset.defaultCharset());
-                threadLocal.set(json);
-            }
+            String json = StreamUtils.copyToString(inputStream, Charset.defaultCharset());
             JsonRequest jsonRequest = param.getParameterAnnotation(JsonRequest.class);
             String value = jsonRequest.value();
             if (value == null || value.isEmpty()) {
                 value = "$." + param.getParameterName();
             }
-            //类型转换
             return JsonPath.read(json, value);
         } catch (PathNotFoundException ex) {
             return null;
-        }*/
+        }
     }
-
 
     private static class CloneBodyHttpInputMessage implements HttpInputMessage{
         private final InputStream body;
@@ -232,9 +277,10 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
 
         private final HttpHeaders headers;
 
-        public CloneBodyHttpInputMessage(HttpInputMessage inputMessage) throws IOException {
+        public CloneBodyHttpInputMessage(HttpInputMessage inputMessage, byte[] bytes) throws IOException {
             this.headers = inputMessage.getHeaders();
-            InputStream inputStream = inputMessage.getBody();
+            InputStream inputStream = new ByteArrayInputStream(bytes);
+
             if (inputStream == null) {
                 this.body = null;
             } else if (inputStream.markSupported()) {
@@ -251,7 +297,12 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
                     pushbackInputStream.unread(b);
                 }
             }
-            this.method = ((HttpRequest) inputMessage).getMethod();
+            if (inputMessage instanceof CloneBodyHttpInputMessage) {
+                this.method = ((CloneBodyHttpInputMessage) inputMessage).getMethod();
+            } else {
+                this.method = ((HttpRequest) inputMessage).getMethod();
+            }
+
         }
 
         @Override
@@ -261,7 +312,11 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
 
         @Override
         public HttpHeaders getHeaders() {
-            return null;
+            return headers;
+        }
+
+        public HttpMethod getMethod() {
+            return this.method;
         }
     }
 
@@ -290,7 +345,12 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
                     this.body = null;
                 } else {
                     this.body = pushbackInputStream;
+
+                    System.out.println("");
+
                     pushbackInputStream.unread(b);
+
+                    System.out.println("");
                 }
             }
             this.method = ((HttpRequest) inputMessage).getMethod();

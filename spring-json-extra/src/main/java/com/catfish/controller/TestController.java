@@ -46,7 +46,7 @@ public class TestController {
 
     @RequestMapping("/getUserByJson4")
     @ResponseBody
-    public String getUserByJson4(@JsonRequest User user, @JsonRequest User user2) {
+    public String getUserByJson4(@JsonRequest User user,@JsonRequest User user2) {
         logger.info(user2.toString());
         return user.toString();
     }
