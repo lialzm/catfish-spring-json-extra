@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultHandlers;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -29,8 +30,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Created by A on 2017/3/27.
  */
 @RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(locations = {"classpath:spring-applicationContext.xml", "classpath:spring-mvc.xml"})
+@ContextConfiguration(locations = {"classpath:spring-mvc.xml","classpath:spring-applicationContext.xml"})
 @WebAppConfiguration
+@EnableWebMvc
 public class ControllerTest {
 
     private MockMvc mockMvc;
