@@ -1,17 +1,20 @@
 package com.catfish.controller;
 
-import com.catfish.bean.Body;
-import com.catfish.bean.JSONArrayWrapper;
-import com.catfish.bean.JSONObjectWrapper;
-import com.catfish.bean.JSONWrapper;
+import com.catfish.bean.*;
 import com.catfish.spring.support.JsonRequest;
 import net.sf.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
+import org.springframework.util.StreamUtils;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+
+import javax.servlet.http.HttpServletRequest;
+import java.io.IOException;
+import java.nio.charset.Charset;
 
 /**
  * Created by A on 2017/3/17.
@@ -79,6 +82,25 @@ public class TestController {
         JSONObject jsonObject = array.getJsonArray().getJSONObject(0);
         return jsonObject.getString("name")+","+body.getId();
     }
+
+    @RequestMapping("/getUser")
+    @ResponseBody
+    public String getUser(@RequestBody User user) {
+        return user.getId();
+    }
+
+    @RequestMapping("/getJson")
+    @ResponseBody
+    public String getJson(HttpServletRequest request) {
+        String jsonString = null;
+        try {
+            jsonString = StreamUtils.copyToString(request.getInputStream(), Charset.defaultCharset());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return jsonString;
+    }
+
 
 
 

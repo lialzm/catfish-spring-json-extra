@@ -48,9 +48,7 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
 
 
     private final Map<MethodParameter, NamedValueInfo> namedValueInfoCache = new ConcurrentHashMap<MethodParameter, NamedValueInfo>(256);
-    private static ThreadLocal<HttpInputMessage> threadLocal = new ThreadLocal<HttpInputMessage>();
-    private static ThreadLocal<byte[]> threadLocal2 = new ThreadLocal<byte[]>();
-    private static ThreadLocal<String> threadLocal3 = new ThreadLocal<String>();
+    private static ThreadLocal<String> jsonLocal = new ThreadLocal<String>();
 
     private Logger logger = LoggerFactory.getLogger(getClass());
 
@@ -172,9 +170,9 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
 
     @Override
     protected <T> Object readWithMessageConverters(HttpInputMessage inputMessage, MethodParameter param, Type targetType) throws IOException, HttpMediaTypeNotSupportedException, HttpMessageNotReadableException {
-        String currentThreadName = Thread.currentThread().getName();
         long id = Thread.currentThread().getId();
         if (logger.isDebugEnabled()) {
+            String currentThreadName = Thread.currentThread().getName();
             logger.debug(currentThreadName + id + " is running!");
         }
 
@@ -203,9 +201,9 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
         }
       /*  String json = null;
         //第一次获取流
-        if (threadLocal3.get() == null) {
+        if (jsonLocal.get() == null) {
             json = StreamUtils.copyToString(inputMessage.getBody(), Charset.forName("UTF-8"));
-            threadLocal3.set(json);
+            jsonLocal.set(json);
 //            threadLocal2.set(StreamUtils.copyToByteArray(inputMessage.getBody()));
 //            threadLocal.set(new CloneBodyHttpInputMessage(inputMessage, threadLocal2.get()));
 //            inputMessage = threadLocal.get();
@@ -214,18 +212,22 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
         InputStream inputStream = inputMessage.getBody();
         String json;
         if (inputStream == null) {
-            json = threadLocal3.get();
+            json = jsonLocal.get();
         } else {
-            json = StreamUtils.copyToString(inputStream, Charset.defaultCharset());
-            threadLocal3.set(json);
+            try {
+                json = StreamUtils.copyToString(inputStream, Charset.defaultCharset());
+            } catch (IOException e) {
+                throw new HttpMediaTypeNotSupportedException(contentType, this.allSupportedMediaTypes);
+            }
+            jsonLocal.set(json);
         }
         Object body = null;
 
         if (canJsonPathRead(targetClass)) {
-            body = jsonPathRead(threadLocal3.get(), param);
+            body = jsonPathRead(json, param);
         } else if (canJSONWrapper(targetClass)) {
             try {
-                body = new JSONWrapper(JSONObject.fromObject(threadLocal3.get()));
+                body = new JSONWrapper(JSONObject.fromObject(json));
             }catch (JSONException e) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("", e);
@@ -237,7 +239,7 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
                 value = "$." + param.getParameterName();
             }
             try {
-                body = new JSONObjectWrapper(JSONObject.fromObject(JsonPath.read(threadLocal3.get(), value)));
+                body = new JSONObjectWrapper(JSONObject.fromObject(JsonPath.read(json, value)));
             } catch (JSONException e) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("", e);
@@ -259,7 +261,7 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
                 }
             }
         } else {
-            body = jsonRead(threadLocal3.get(), targetClass, param);
+            body = jsonRead(json, targetClass, param);
         }
         return body;
     }
