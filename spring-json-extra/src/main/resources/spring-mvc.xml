@@ -6,8 +6,13 @@
        xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
         http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
 http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc.xsd">
-    <mvc:annotation-driven>
-        <mvc:argument-resolvers>
+    <!--配置controller扫描路径-->
+    <context:component-scan base-package="com.catfish.**.controller" use-default-filters="false">
+        <context:include-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+    </context:component-scan>
+
+    <mvc:annotation-driven >
+        <mvc:argument-resolvers >
             <bean class="com.catfish.spring.support.JsonRequestMethodArgumentResolver">
                 <constructor-arg>
                     <list>
@@ -29,9 +34,6 @@ http://www.springframework.org/schema/mvc http://www.springframework.org/schema/
             </bean>
         </mvc:message-converters>
     </mvc:annotation-driven>
-    <!--配置controller扫描路径-->
-    <context:component-scan base-package="com.catfish.**.controller">
-    </context:component-scan>
 
 
 </beans>

@@ -7,6 +7,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.web.WebAppConfiguration;
@@ -17,12 +18,9 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultHandlers;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+import org.springframework.web.context.WebApplicationContext;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -30,9 +28,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Created by A on 2017/3/27.
  */
 @RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(locations = {"classpath:spring-mvc.xml","classpath:spring-applicationContext.xml"})
+@ContextConfiguration(locations = {"classpath:spring-mvc.xml"})
 @WebAppConfiguration
-@EnableWebMvc
 public class ControllerTest {
 
     private MockMvc mockMvc;
@@ -40,9 +37,14 @@ public class ControllerTest {
     @Autowired
     TestController testController;
 
+    @Autowired
+    private WebApplicationContext wac;
+
     @Before
     public void init() {
-        mockMvc = MockMvcBuilders.standaloneSetup(testController).build();
+        List list1 = new ArrayList();
+        list1.add(new MappingJackson2HttpMessageConverter());
+        mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();
     }
 
     private String getForm(String url, Map<String, String> params) throws Exception {
@@ -124,7 +126,133 @@ public class ControllerTest {
                 "    \"name\": \"qqq\"\n" +
                 "}";
         String result = postJson("/getParameterByPath.do", json);
-        Assert.assertEquals("1,qqq",result);
+        Assert.assertEquals("\"1,qqq\"",result);
+    }
+
+    @Test
+    public void getParameterByDefaultKeyTest() throws Exception{
+        String json = "{\n" +
+                "    \"id\": \"1\",\n" +
+                "    \"name\": \"qqq\"\n" +
+                "}";
+        String result = postJson("/getParameterByDefaultKey.do", json);
+        Assert.assertEquals("\"1,qqq\"",result);
+    }
+
+    @Test
+    public void getParameterByDefaultValueTest() throws Exception{
+        String json = "{\n" +
+                "    \"name\": \"qqq\"\n" +
+                "}";
+        String result = postJson("/getParameterByDefaultValue.do", json);
+        Assert.assertEquals("\"0,qqq\"",result);
+    }
+
+
+    @Test
+    public void getJsonObjectTest() throws Exception{
+        String json = "{\n" +
+                "    \"id\": \"11\",\n" +
+                "    \"name\": \"qqq\",\n" +
+                "    \"body\": {\n" +
+                "        \"id\": \"222\"\n" +
+                "    },\n" +
+                "    \"array\": [\n" +
+                "        {\n" +
+                "            \"name\": \"item1\"\n" +
+                "        },\n" +
+                "        {\n" +
+                "            \"name\": \"item2\"\n" +
+                "        }\n" +
+                "    ]\n" +
+                "}";
+        String result = postJson("/getJsonObject.do", json);
+        System.out.println(result);
+        Assert.assertEquals("\"222\"",result);
+    }
+    @Test
+    public void getAllJsonObjectTest() throws Exception{
+        String json = "{\n" +
+                "    \"id\": \"11\",\n" +
+                "    \"name\": \"qqq\",\n" +
+                "    \"body\": {\n" +
+                "        \"id\": \"222\"\n" +
+                "    },\n" +
+                "    \"array\": [\n" +
+                "        {\n" +
+                "            \"name\": \"item1\"\n" +
+                "        },\n" +
+                "        {\n" +
+                "            \"name\": \"item2\"\n" +
+                "        }\n" +
+                "    ]\n" +
+                "}";
+        String result = postJson("/getAllJsonObject.do", json);
+        System.out.println(result);
+        Assert.assertEquals("\"11\"",result);
+    }
+
+    @Test
+    public void getBeanTest() throws Exception{
+        String json = "{\n" +
+                "    \"id\": \"11\",\n" +
+                "    \"name\": \"qqq\",\n" +
+                "    \"body\": {\n" +
+                "        \"id\": \"222\"\n" +
+                "    },\n" +
+                "    \"array\": [\n" +
+                "        {\n" +
+                "            \"name\": \"item1\"\n" +
+                "        },\n" +
+                "        {\n" +
+                "            \"name\": \"item2\"\n" +
+                "        }\n" +
+                "    ]\n" +
+                "}";
+        String result = postJson("/getBean.do", json);
+        Assert.assertEquals("\"222\"",result);
+    }
+
+    @Test
+    public void getJsonArrayTest() throws Exception{
+        String json = "{\n" +
+                "    \"id\": \"11\",\n" +
+                "    \"name\": \"qqq\",\n" +
+                "    \"body\": {\n" +
+                "        \"id\": \"222\"\n" +
+                "    },\n" +
+                "    \"array\": [\n" +
+                "        {\n" +
+                "            \"name\": \"item1\"\n" +
+                "        },\n" +
+                "        {\n" +
+                "            \"name\": \"item2\"\n" +
+                "        }\n" +
+                "    ]\n" +
+                "}";
+        String result = postJson("/getJsonArray.do", json);
+        Assert.assertEquals("\"item1\"",result);
+    }
+
+    @Test
+    public void getJsonArrayAndBeanTest() throws Exception{
+        String json = "{\n" +
+                "    \"id\": \"11\",\n" +
+                "    \"name\": \"qqq\",\n" +
+                "    \"body\": {\n" +
+                "        \"id\": \"222\"\n" +
+                "    },\n" +
+                "    \"array\": [\n" +
+                "        {\n" +
+                "            \"name\": \"item1\"\n" +
+                "        },\n" +
+                "        {\n" +
+                "            \"name\": \"item2\"\n" +
+                "        }\n" +
+                "    ]\n" +
+                "}";
+        String result = postJson("/getJsonArrayAndBean.do", json);
+        Assert.assertEquals("\"item1,222\"",result);
     }
 
 

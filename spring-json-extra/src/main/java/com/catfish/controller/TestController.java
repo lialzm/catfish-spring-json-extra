@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 /**
@@ -22,23 +23,34 @@ public class TestController {
     private Logger logger = LoggerFactory.getLogger(getClass());
 
 
+    @RequestMapping("/getValue")
+    @ResponseBody
+    public String getParameterByPath(@RequestParam String id) {
+        return  id;
+    }
+
     @RequestMapping("/getParameterByPath")
     @ResponseBody
     public String getParameterByPath(@JsonRequest("$.id") Long id, @JsonRequest("$.name") String name) {
         return id + "," + name;
     }
 
+    @RequestMapping("/getParameterByDefaultKey")
+    @ResponseBody
+    public String getParameterByDefaultKey(@JsonRequest Long id, @JsonRequest String name) {
+        return id + "," + name;
+    }
     @RequestMapping("/getParameterByDefaultValue")
     @ResponseBody
-    public String getParameterByDefaultValue(@JsonRequest Long id, @JsonRequest String name) {
+    public String getParameterByDefaultValue(@JsonRequest(defaultValue = "0") Long id, @JsonRequest String name) {
         return id + "," + name;
     }
 
     @RequestMapping("/getJsonObject")
     @ResponseBody
-    public String getJsonObject(@JsonRequest JSONObjectWrapper name) {
-        logger.info(name.toString());
-        return name.getJSONObject().getString("id");
+    public String getJsonObject(@JsonRequest JSONObjectWrapper body) {
+        logger.info(body.toString());
+        return body.getJSONObject().getString("id");
     }
 
     @RequestMapping("/getAllJsonObject")
@@ -60,4 +72,14 @@ public class TestController {
         JSONObject jsonObject = array.getJsonArray().getJSONObject(0);
         return jsonObject.getString("name");
     }
+
+    @RequestMapping("/getJsonArrayAndBean")
+    @ResponseBody
+    public String getJsonArrayAndBean(@JsonRequest JSONArrayWrapper array,@JsonRequest Body body) {
+        JSONObject jsonObject = array.getJsonArray().getJSONObject(0);
+        return jsonObject.getString("name")+","+body.getId();
+    }
+
+
+
 }
