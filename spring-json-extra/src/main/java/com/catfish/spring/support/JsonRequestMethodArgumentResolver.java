@@ -50,7 +50,6 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
     private final Map<MethodParameter, NamedValueInfo> namedValueInfoCache = new ConcurrentHashMap<MethodParameter, NamedValueInfo>(256);
     private static ThreadLocal<HttpInputMessage> threadLocal = new ThreadLocal<HttpInputMessage>();
     private static ThreadLocal<byte[]> threadLocal2 = new ThreadLocal<byte[]>();
-    private static ThreadLocal<String> threadLocal3 = new ThreadLocal<String>();
 
     private Logger logger = LoggerFactory.getLogger(getClass());
 
@@ -197,54 +196,46 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
                     ResolvableType.forMethodParameter(param) : ResolvableType.forType(targetType));
             targetClass = (Class<T>) resolvableType.resolve();
         }
+        //第一次获取流
+        if (threadLocal.get() == null) {
+            threadLocal2.set(StreamUtils.copyToByteArray(inputMessage.getBody()));
+            threadLocal.set(new CloneBodyHttpInputMessage(inputMessage, threadLocal2.get()));
+            inputMessage = threadLocal.get();
+        } else {
+            inputMessage = new CloneBodyHttpInputMessage(threadLocal.get(), threadLocal2.get());
+        }
+        Object body = null;
         Charset charset = contentType.getCharset();
         if (charset == null) {
             charset = Charset.defaultCharset();
         }
-      /*  String json = null;
-        //第一次获取流
-        if (threadLocal3.get() == null) {
-            json = StreamUtils.copyToString(inputMessage.getBody(), Charset.forName("UTF-8"));
-            threadLocal3.set(json);
-//            threadLocal2.set(StreamUtils.copyToByteArray(inputMessage.getBody()));
-//            threadLocal.set(new CloneBodyHttpInputMessage(inputMessage, threadLocal2.get()));
-//            inputMessage = threadLocal.get();
-        }*/
-
-        InputStream inputStream = inputMessage.getBody();
-        String json;
-        if (inputStream == null) {
-            json = threadLocal3.get();
-        } else {
-            json = StreamUtils.copyToString(inputStream, Charset.defaultCharset());
-            threadLocal3.set(json);
-        }
-        Object body = null;
-
         if (canJsonPathRead(targetClass)) {
-            body = jsonPathRead(threadLocal3.get(), param);
+            body = jsonPathRead(inputMessage, param,charset);
         } else if (canJSONWrapper(targetClass)) {
+            String json = StreamUtils.copyToString(inputMessage.getBody(), charset);
             try {
-                body = new JSONWrapper(JSONObject.fromObject(threadLocal3.get()));
+                body = new JSONWrapper(JSONObject.fromObject(json));
             }catch (JSONException e) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("", e);
                 }
             }
         } else if (canJsonObjectWrapper(targetClass)) {
+            String json = StreamUtils.copyToString(inputMessage.getBody(), charset);
             String value = param.getParameterAnnotation(JsonRequest.class).value();
             if (value == null || value.isEmpty()) {
                 value = "$." + param.getParameterName();
             }
             try {
-                body = new JSONObjectWrapper(JSONObject.fromObject(JsonPath.read(threadLocal3.get(), value)));
+                body = new JSONObjectWrapper(JSONObject.fromObject(JsonPath.read(json, value)));
             } catch (JSONException e) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("", e);
                 }
             }
         } else if (canJsonArrayWrapper(targetClass)) {
-            if (logger.isDebugEnabled()) {
+            String json = StreamUtils.copyToString(inputMessage.getBody(), charset);
+            if (logger.isDebugEnabled()){
                 logger.debug(json);
             }
             String value = param.getParameterAnnotation(JsonRequest.class).value();
@@ -259,7 +250,7 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
                 }
             }
         } else {
-            body = jsonRead(threadLocal3.get(), targetClass, param);
+            body = jsonRead(inputMessage, targetType, contextClass, contentType, targetClass, param);
         }
         return body;
     }
@@ -295,8 +286,13 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
                 );
     }
 
-    private Object jsonRead(String json, Class targetClass, MethodParameter param) throws IOException {
+    private Object jsonRead(HttpInputMessage inputMessage, Type targetType, Class<?> contextClass, MediaType contentType, Class targetClass, MethodParameter param) throws IOException {
         Object body = NO_VALUE;
+        Charset charset = contentType.getCharset();
+        if (charset == null) {
+            charset = Charset.defaultCharset();
+        }
+        String json = StreamUtils.copyToString(inputMessage.getBody(), charset);
         String value = param.getParameterAnnotation(JsonRequest.class).value();
         if (value == null || value.isEmpty()) {
             value = "$." + param.getParameterName();
@@ -341,9 +337,11 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
         return body;
     }
 
-    private Object jsonPathRead(String json, MethodParameter param) throws IOException {
+    private Object jsonPathRead(HttpInputMessage inputMessage, MethodParameter param,Charset charset) throws IOException {
         try {
+            InputStream inputStream = inputMessage.getBody();
 
+            String json = StreamUtils.copyToString(inputStream, charset);
             JsonRequest jsonRequest = param.getParameterAnnotation(JsonRequest.class);
             String value = jsonRequest.value();
             if (value == null || value.isEmpty()) {
