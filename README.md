@@ -12,7 +12,7 @@
 }
 ```
 ```java
- @RequestMapping("/getParameterByDefaultKey")
+    @RequestMapping("/getParameterByDefaultKey")
     @ResponseBody
     public String getParameterByDefaultKey(@JsonRequest Long id, @JsonRequest String name) {
         return id + "," + name;
@@ -31,7 +31,7 @@
 [jsonpath使用方法](https://github.com/jayway/JsonPath)
 支持默认参数
 ```java
- @RequestMapping("/getParameterByDefaultValue")
+    @RequestMapping("/getParameterByDefaultValue")
     @ResponseBody
     public String getParameterByDefaultValue(@JsonRequest(defaultValue = "0") Long id, @JsonRequest String name) {
         return id + "," + name;
@@ -50,7 +50,7 @@
 ```
 
 ```java
-@RequestMapping("/getJsonObject")
+    @RequestMapping("/getJsonObject")
     @ResponseBody
     public String getJsonObject(@JsonRequest JSONObjectWrapper body) {
         logger.info(body.toString());
@@ -68,7 +68,7 @@
 ```
 支持将json中的jsonobject映射为bean
 ```java
-@RequestMapping("/getBean")
+    @RequestMapping("/getBean")
     @ResponseBody
     public String getUserByJson7(@JsonRequest Body body) {
         return String.valueOf(body.getId());
@@ -76,7 +76,7 @@
 ```
 支持直接获取json中的jsonarray
 ```java
-   @RequestMapping("/getJsonArray")
+    @RequestMapping("/getJsonArray")
     @ResponseBody
     public String getJsonArray(@JsonRequest JSONArrayWrapper array) {
         JSONObject jsonObject = array.getJsonArray().getJSONObject(0);
@@ -103,10 +103,16 @@
 }
 ```
 ```java
-@RequestMapping("/getJsonArrayAndBean")
+    @RequestMapping("/getJsonArrayAndBean")
     @ResponseBody
     public String getJsonArrayAndBean(@JsonRequest JSONArrayWrapper array,@JsonRequest Body body) {
         JSONObject jsonObject = array.getJsonArray().getJSONObject(0);
         return jsonObject.getString("name")+","+body.getId();
     }
 ```
+
+
+拓展阅读:
+[springmvc 参数绑定](http://www.jianshu.com/p/28b6dd7ac157)
+[springmvc 参数绑定源码分析](http://www.jianshu.com/p/d65dad84c0a0)
+[springmvc 自定义参数转换器](http://www.jianshu.com/p/f2f8b816b3a9)
