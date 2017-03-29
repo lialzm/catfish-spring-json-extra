@@ -208,11 +208,12 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
 //            threadLocal.set(new CloneBodyHttpInputMessage(inputMessage, threadLocal2.get()));
 //            inputMessage = threadLocal.get();
         }*/
-
+        inputMessage=new EmptyBodyCheckingHttpInputMessage(inputMessage);
         InputStream inputStream = inputMessage.getBody();
         String json;
         if (inputStream == null) {
             json = jsonLocal.get();
+            logger.info("inputStream==null");
         } else {
             try {
                 json = StreamUtils.copyToString(inputStream, Charset.defaultCharset());
@@ -221,6 +222,7 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
             }
             jsonLocal.set(json);
         }
+        logger.info(json);
         Object body = null;
 
         if (canJsonPathRead(targetClass)) {
@@ -354,6 +356,55 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
             return JsonPath.read(json, value);
         } catch (PathNotFoundException ex) {
             return null;
+        }
+    }
+
+    private static class EmptyBodyCheckingHttpInputMessage implements HttpInputMessage {
+
+        private final HttpHeaders headers;
+
+        private final InputStream body;
+
+        private final HttpMethod method;
+
+
+        public EmptyBodyCheckingHttpInputMessage(HttpInputMessage inputMessage) throws IOException {
+            this.headers = inputMessage.getHeaders();
+            InputStream inputStream = inputMessage.getBody();
+            if (inputStream == null) {
+                this.body = null;
+            }
+            else if (inputStream.markSupported()) {
+                inputStream.mark(1);
+                this.body = (inputStream.read() != -1 ? inputStream : null);
+                inputStream.reset();
+            }
+            else {
+                PushbackInputStream pushbackInputStream = new PushbackInputStream(inputStream);
+                int b = pushbackInputStream.read();
+                if (b == -1) {
+                    this.body = null;
+                }
+                else {
+                    this.body = pushbackInputStream;
+                    pushbackInputStream.unread(b);
+                }
+            }
+            this.method = ((HttpRequest) inputMessage).getMethod();
+        }
+
+        @Override
+        public HttpHeaders getHeaders() {
+            return this.headers;
+        }
+
+        @Override
+        public InputStream getBody() throws IOException {
+            return this.body;
+        }
+
+        public HttpMethod getMethod() {
+            return this.method;
         }
     }
 
