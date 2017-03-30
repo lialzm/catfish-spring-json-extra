@@ -28,7 +28,6 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.method.support.ModelAndViewContainer;
 import org.springframework.web.servlet.mvc.method.annotation.AbstractMessageConverterMethodArgumentResolver;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PushbackInputStream;
@@ -155,9 +154,7 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
     protected <T> Object readWithMessageConverters(HttpInputMessage inputMessage, MethodParameter param, Type targetType) throws IOException, HttpMediaTypeNotSupportedException, HttpMessageNotReadableException {
         String currentThreadName = Thread.currentThread().getName();
         long id = Thread.currentThread().getId();
-        if (logger.isDebugEnabled()) {
-            logger.debug(currentThreadName + id + " is running!");
-        }
+        logger.debug(currentThreadName + id + " is running!");
 
         MediaType contentType;
         boolean noContentType = false;
@@ -185,13 +182,14 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
 
         inputMessage = new CloneBodyHttpInputMessage(inputMessage);
 
-        InputStream pushbackInputStream = inputMessage.getBody();
+        CloneBodyHttpInputMessage cloneBodyHttpInputMessage = (CloneBodyHttpInputMessage) inputMessage;
+
         Object body = null;
         Charset charset = contentType.getCharset();
         if (charset == null) {
             charset = Charset.defaultCharset();
         }
-        String json = StreamUtils.copyToString(pushbackInputStream, charset);
+        String json = cloneBodyHttpInputMessage.getJson();
         logger.debug(json);
         if (canJsonPathRead(targetClass)) {
             body = jsonPathRead(json, param, charset);
@@ -229,7 +227,7 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
                 }
             }
         } else {
-            body = jsonRead(pushbackInputStream, targetType, contextClass, contentType, targetClass, param);
+            body = jsonRead(json, targetType, contextClass, contentType, targetClass, param);
         }
         return body;
     }
@@ -265,13 +263,12 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
                 );
     }
 
-    private Object jsonRead(InputStream inputStream, Type targetType, Class<?> contextClass, MediaType contentType, Class targetClass, MethodParameter param) throws IOException {
+    private Object jsonRead(String json, Type targetType, Class<?> contextClass, MediaType contentType, Class targetClass, MethodParameter param) throws IOException {
         Object body = NO_VALUE;
         Charset charset = contentType.getCharset();
         if (charset == null) {
             charset = Charset.defaultCharset();
         }
-        String json = StreamUtils.copyToString(inputStream, charset);
         String value = param.getParameterAnnotation(JsonRequest.class).value();
         if (value == null || value.isEmpty()) {
             value = "$." + param.getParameterName();
@@ -301,31 +298,45 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
     }
 
     private static class CloneBodyHttpInputMessage implements HttpInputMessage{
+
+        Logger logger=LoggerFactory.getLogger("CloneBodyHttpInputMessage");
+
         private InputStream body;
 
         private final HttpMethod method;
 
         private final HttpHeaders headers;
 
+        private final String json;
+
         public CloneBodyHttpInputMessage(HttpInputMessage inputMessage) throws IOException {
             this.headers = inputMessage.getHeaders();
             InputStream inputStream = inputMessage.getBody();
-            inputStream = new ByteArrayInputStream(StreamUtils.copyToByteArray(inputStream));
             if (inputStream == null) {
                 this.body = null;
+                this.json = null;
+                logger.info("***************");
             } else if (inputStream.markSupported()) {
                 inputStream.reset();
 //                if (inputStream.read() == -1) {
 //                }
                 this.body = inputStream;
+                this.json = null;
+                logger.info("===============");
             } else {
-                PushbackInputStream pushbackInputStream = new PushbackInputStream(inputStream);
+                PushbackInputStream pushbackInputStream = new PushbackInputStream(inputStream, 1024);
+                inputStream=pushbackInputStream;
                 int b = pushbackInputStream.read();
                 if (b == -1) {
-                    this.body = pushbackInputStream;
+                    this.body = null;
+                    this.json = null;
+                    logger.info("#####################");
                 } else {
                     this.body = pushbackInputStream;
                     pushbackInputStream.unread(b);
+                    byte[] bytes = StreamUtils.copyToByteArray(pushbackInputStream);
+                    this.json = new String(bytes);
+                    pushbackInputStream.unread(bytes);
                 }
 
             }
@@ -351,5 +362,10 @@ public class JsonRequestMethodArgumentResolver extends AbstractMessageConverterM
         public HttpMethod getMethod() {
             return this.method;
         }
+
+        public String getJson() {
+            return this.json;
+        }
+
     }
 }
